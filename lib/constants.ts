@@ -1,0 +1,1 @@
+export const ADMIN_ADDRESS = "Cgkg49NwM9S5vAowZEfnCHR6K3P4brE6brbzJM5eRX2q";
