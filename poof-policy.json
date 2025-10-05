@@ -1,0 +1,142 @@
+{
+  "uniblock/$requestId": {
+    "type": "api",
+    "service": "uniblock",
+    "rules": {
+      "create": "true",
+      "update": "true",
+      "delete": "true"
+    }
+  },
+  "appFiles/$fileId": {
+    "type": "storage",
+    "rules": {
+      "read": "true",
+      "create": "true",
+      "update": "false",
+      "delete": "false"
+    }
+  },
+  "uploadedImages/$imageId": {
+    "type": "storage",
+    "description": "User uploaded images ad files",
+    "rules": {
+      "read": "true",
+      "create": "@user.address == @constants.ADMIN_ADDRESS",
+      "update": "false",
+      "delete": "@user.address == @constants.ADMIN_ADDRESS"
+    }
+  },
+  "agents/$agentId": {
+    "operationDetails": {
+      "read": "UI/API How-To:\nWho: Anyone (public list) or the owner filtering via queries.\nGoal: Retrieve trading agent configuration and status.\nPreconditions: None.\nSteps (client):\n  1) Read agents/$agentId or list agents collection.\nHooks that will execute (on success): None (off-chain collection).\nPostconditions: None.\nWhat the client should do next:\n  - Render agent details. If viewer is owner, enable Edit / Delete / Start / Stop controls.\nNotes:\n  - Idempotency/Retries: Reads are safe to retry.",
+      "create": "UI/API How-To:\nWho: Authenticated user; caller must equal @newData.owner.\nGoal: Create and save a new trading agent configuration.\nPreconditions:\n  - @newData.owner == @user.address\n  - copyRatio (basis points) is between 1 and 10000 inclusive.\n  - retryLimit and all timeout values are positive.\nSteps (client):\n  1) Generate a unique $agentId client-side (reuse on retries).\n  2) Create agents/$agentId with the fields documented below.\nHooks that will execute (on success): None.\nPostconditions: A new agent document exists with status=\"inactive\".\nWhat the client should do next:\n  - Show the agent in the dashboard. Provide controls to start the bot via backend API.\nNotes:\n  - Units: copyRatio is basis points; timeout/increment fields are UInt seconds or cents.\n  - Idempotency/Retries: Reuse $agentId on retries.",
+      "update": "UI/API How-To:\nWho: Only the agent owner.\nGoal: Modify trading parameters or status (e.g., set status=\"active\").\nPreconditions:\n  - @data.owner == @user.address AND @data.owner == @newData.owner.\nSteps (client):\n  1) PATCH only the fields that need to change (do not alter owner).\nHooks that will execute (on success): None.\nPostconditions: Fields updated.\nWhat the client should do next:\n  - Refetch the agent; update UI accordingly.\nNotes:\n  - Idempotency/Retries: Safe to retry the same payload.",
+      "delete": "UI/API How-To:\nWho: Only the agent owner.\nGoal: Permanently remove an agent configuration.\nPreconditions:\n  - @data.owner == @user.address.\nSteps (client):\n  1) DELETE agents/$agentId.\nHooks that will execute (on success): None.\nPostconditions: Document removed.\nWhat the client should do next:\n  - Stop any running backend bot, then remove the UI card.\nNotes:\n  - Idempotency/Retries: Deleting a non-existent doc is a no-op."
+    },
+    "onchain": false,
+    "fields": {
+      "owner": "Address",
+      "name": "String",
+      "description": "String?",
+      "avatarUri": "String?",
+      "targetWallet": "Address",
+      "copyRatio": "UInt",
+      "retryLimit": "UInt",
+      "initialOrderTimeout": "UInt",
+      "secondOrderIncrement": "UInt",
+      "secondOrderTimeout": "UInt",
+      "finalOrderIncrement": "UInt",
+      "finalOrderTimeout": "UInt",
+      "protectionLevel": "String",
+      "status": "String",
+      "createdAt": "UInt?"
+    },
+    "rules": {
+      "read": "true",
+      "create": "@newData.owner == @user.address && @newData.copyRatio > 0 && @newData.copyRatio <= 10000 && @newData.retryLimit > 0 && @newData.initialOrderTimeout > 0 && @newData.secondOrderTimeout > 0 && @newData.finalOrderTimeout > 0",
+      "update": "@data.owner == @user.address && @data.owner == @newData.owner",
+      "delete": "@data.owner == @user.address"
+    }
+  },
+  "agentEscrows/$agentId/deposits/$depositId": {
+    "operationDetails": {
+      "read": "UI/API How-To:\nWho: Anyone (public history).\nGoal: Inspect deposit records for an agent escrow.\nPreconditions: None.\nSteps (client):\n  1) Read agentEscrows/$agentId/deposits/$depositId or list deposits to show history.\nHooks that will execute (on success): None.\nPostconditions: None.\nWhat the client should do next:\n  - Show confirmation / history entry if needed.\nNotes:\n  - Idempotency/Retries: Reads are safe to retry.",
+      "create": "UI/API How-To:\nWho: Authenticated depositor; caller must equal @newData.depositor.\nGoal: Deposit SOL into the agent escrow so the automated bot can trade.\nPreconditions:\n  - @newData.depositor == @user.address\n  - @newData.amountLamports > 0\nSteps (client):\n  1) Generate unique $depositId.\n  2) Create agentEscrows/$agentId/deposits/$depositId with { depositor, amountLamports }.\nHooks that will execute (on success):\n  - Ensures an escrow PDA exists for $agentId via @AccountPlugin.createAccount.\n  - Transfers SOL from depositor → escrow PDA.\nPostconditions: Escrow balance increases by amountLamports.\nWhat the client should do next:\n  - Refresh agent balance display via queries if implemented.\nNotes:\n  - Units: amountLamports are in lamports (1 SOL = 1_000_000_000 lamports).\n  - Idempotency/Retries: Reuse $depositId to avoid double-charging on retry.",
+      "update": "UI/API How-To:\nWho: N/A (immutable deposit record).\nGoal: Not supported.\nPreconditions: Disallowed by rules.\nSteps (client):\n  1) Do not call update.\nHooks that will execute (on success): None.",
+      "delete": "UI/API How-To:\nWho: N/A.\nGoal: Not supported (history preservation).\nPreconditions: Disallowed by rules.\nSteps (client):\n  1) Do not call delete.\nHooks that will execute (on success): None."
+    },
+    "onchain": true,
+    "isPassthrough": true,
+    "fields": {
+      "depositor": "Address",
+      "amountLamports": "UInt"
+    },
+    "rules": {
+      "read": "true",
+      "create": "@newData.depositor == @user.address && @newData.amountLamports > 0",
+      "update": "false",
+      "delete": "false"
+    },
+    "hooks": {
+      "onchain": {
+        "create": "@AccountPlugin.createAccount($agentId) && @TokenPlugin.transfer(@newData.depositor, $agentId, @TokenPlugin.SOL, @newData.amountLamports)"
+      }
+    },
+    "queries": {
+      "getEscrowBalance": {
+        "returnType": "UInt",
+        "query": "@TokenPlugin.getBalance($agentId, @TokenPlugin.SOL)"
+      }
+    }
+  },
+  "agentEscrows/$agentId/withdrawals/$withdrawalId": {
+    "operationDetails": {
+      "read": "UI/API How-To:\nWho: Anyone (public audit).\nGoal: Inspect withdrawal records for an agent escrow.\nPreconditions: None.\nSteps (client):\n  1) Read withdrawals to view history.\nHooks that will execute (on success): None.\nPostconditions: None.",
+      "create": "UI/API How-To:\nWho: Authenticated user requesting withdrawal.\nGoal: Withdraw SOL from the agent escrow back to the caller's wallet.\nPreconditions:\n  - @newData.requestor == @user.address\n  - @newData.amountLamports > 0\n  - @newData.amountLamports <= @TokenPlugin.getBalance($agentId, @TokenPlugin.SOL)\nSteps (client):\n  1) Generate unique $withdrawalId.\n  2) Create agentEscrows/$agentId/withdrawals/$withdrawalId with { requestor, amountLamports }.\nHooks that will execute (on success):\n  - Transfers SOL from escrow PDA → requestor wallet.\nPostconditions: Escrow balance decreases.\nWhat the client should do next:\n  - Refresh balances.\nNotes:\n  - Units: lamports.\n  - Idempotency/Retries: Reuse $withdrawalId to safely retry.",
+      "update": "UI/API How-To:\nWho: N/A (immutable record).\nGoal: Not supported.\nPreconditions: Disallowed.\nSteps (client): Do not call update.",
+      "delete": "UI/API How-To:\nWho: N/A.\nGoal: Not supported.\nPreconditions: Disallowed.\nSteps (client): Do not call delete."
+    },
+    "onchain": true,
+    "isPassthrough": true,
+    "fields": {
+      "requestor": "Address",
+      "amountLamports": "UInt"
+    },
+    "rules": {
+      "read": "true",
+      "create": "@newData.requestor == @user.address && @newData.amountLamports > 0 && @newData.amountLamports <= @TokenPlugin.getBalance($agentId, @TokenPlugin.SOL)",
+      "update": "false",
+      "delete": "false"
+    },
+    "hooks": {
+      "onchain": {
+        "create": "@TokenPlugin.transfer($agentId, @newData.requestor, @TokenPlugin.SOL, @newData.amountLamports)"
+      }
+    },
+    "queries": {
+      "getEscrowBalance": {
+        "returnType": "UInt",
+        "query": "@TokenPlugin.getBalance($agentId, @TokenPlugin.SOL)"
+      }
+    }
+  },
+  "recoveryKeys/$userId": {
+    "operationDetails": {
+      "read": "UI/API How-To:\nWho: The user only ($userId).\nGoal: Retrieve the user's encrypted recovery key for export or verification.\nPreconditions:\n  - @user.address == $userId\nSteps (client):\n  1) Read recoveryKeys/$userId.\nHooks that will execute (on success): None.\nPostconditions: None.\nWhat the client should do next:\n  - Display recovery key status; never show decrypted key in UI.\nNotes:\n  - Idempotency/Retries: Safe to retry reads.",
+      "create": "UI/API How-To:\nWho: The user only ($userId).\nGoal: Import an encrypted recovery key and store it securely.\nPreconditions:\n  - @user.address == $userId\n  - @newData.encryptedKey != null\nSteps (client):\n  1) Encrypt the recovery key client-side.\n  2) Write recoveryKeys/$userId with { encryptedKey }.\nHooks that will execute (on success): None.\nPostconditions: Key is stored.\nWhat the client should do next:\n  - Show confirmation message.\nNotes:\n  - Never send plaintext keys to the server.\n  - Idempotency/Retries: Overwrite allowed via update if needed.",
+      "update": "UI/API How-To:\nWho: The user only ($userId).\nGoal: Replace or rotate the encrypted recovery key.\nPreconditions:\n  - @user.address == $userId\n  - @newData.encryptedKey != null\nSteps (client):\n  1) Encrypt new key.\n  2) PATCH encryptedKey field.\nHooks that will execute (on success): None.\nPostconditions: Key updated.\nWhat the client should do next:\n  - Confirm update to user.",
+      "delete": "UI/API How-To:\nWho: The user only ($userId).\nGoal: Remove stored recovery key (dangerous; user may lose access).\nPreconditions:\n  - @user.address == $userId\nSteps (client):\n  1) DELETE recoveryKeys/$userId.\nHooks that will execute (on success): None.\nPostconditions: Key removed.\nWhat the client should do next:\n  - Warn user about consequences.\nNotes:\n  - Idempotency/Retries: Deleting a non-existent doc is a no-op."
+    },
+    "onchain": false,
+    "fields": {
+      "encryptedKey": "String"
+    },
+    "rules": {
+      "read": "@user.address == $userId",
+      "create": "@user.address == $userId && @newData.encryptedKey != null",
+      "update": "@user.address == $userId && @newData.encryptedKey != null",
+      "delete": "@user.address == $userId"
+    }
+  }
+}
